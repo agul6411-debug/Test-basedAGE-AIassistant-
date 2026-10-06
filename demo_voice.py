@@ -1,31 +1,40 @@
-"""AGE Voice Pipeline Demonstration Script.
+"""AGE Voice Pipeline & Command Router Demonstration Script.
 
-Say a sentence (or trigger via Ctrl+Space), prints the text with latency breakdown,
-and speaks it back via Piper TTS.
+Say a voice command (or trigger via Ctrl+Space), AGE transcribes it,
+routes it through Layer 1 tools, executes the action, and speaks the reply.
 """
 
 import time
 
+from core.brain.router import CommandRouter
 from core.logger import setup_logger
+from core.safety.action_logger import ActionLogger
+from core.safety.confirmation import ConfirmationManager
 from core.voice.pipeline import VoicePipeline
 
 
 def main() -> None:
-    """Run interactive voice pipeline demonstration."""
+    """Run interactive voice-controlled assistant demonstration."""
     logger = setup_logger(log_file="age.log", log_level="INFO")
-    logger.info("Initializing AGE Voice Pipeline Demo...")
+    logger.info("Initializing AGE Voice & Router Demo...")
 
     print("=" * 60)
-    print("   AGE - MY BEST FRIEND AI Voice Pipeline Demo")
+    print("   AGE - Voice Assistant & Tool Router Demo (Phase 3)")
     print("=" * 60)
-    print("Instructions:")
-    print("  1. Say the wake word (or press Ctrl+Space).")
-    print("  2. Speak your English sentence clearly.")
-    print("  3. Pause when finished; Silero VAD will detect the end of speech.")
-    print("  4. Faster-Whisper will transcribe it, and Piper TTS will speak it back.")
-    print("  Press Ctrl+C to exit.\n")
+    print("Example commands to try:")
+    print("  • \"open notepad\"")
+    print("  • \"volume up\"  or  \"set volume to 40\"")
+    print("  • \"search YouTube for cooking videos\"")
+    print("  • \"search web for python 3.11\"")
+    print("  • \"lock the screen\"")
+    print("  • \"close notepad\"")
+    print("  • \"shutdown\" (will request confirmation!)")
+    print("\nPress Ctrl+C to exit.\n")
 
     pipeline = VoicePipeline(auto_download_models=True)
+    confirmation_mgr = ConfirmationManager(default_timeout_sec=8.0)
+    action_logger = ActionLogger()
+    router = CommandRouter(confirmation_manager=confirmation_mgr, action_logger=action_logger)
 
     try:
         while True:
@@ -40,16 +49,18 @@ def main() -> None:
                 continue
 
             cycle_latency = time.perf_counter() - t_cycle_start
-            print(f"\n[TRANSCRIPT] \"{transcript}\"")
-            print(f"[TIMING] Total round-trip latency: {cycle_latency:.2f}s\n")
+            print(f"\n[TRANSCRIPT] \"{transcript}\" (latency: {cycle_latency:.2f}s)")
 
-            reply = f"You said: {transcript}"
-            print(f"[REPLY] Speaking: \"{reply}\"...")
-            pipeline.speak(reply)
-            print("[DONE] Speech playback complete.\n")
+            # Route and execute command
+            result = router.execute_command(transcript, voice_pipeline=pipeline)
+            print(f"[ACTION] Tool: {result.tool_name} | Success: {result.success} | Message: {result.message}")
+
+            # Speak response back to user
+            pipeline.speak(result.message)
+            print("[DONE] Cycle completed.\n")
 
     except KeyboardInterrupt:
-        print("\nExiting voice demo. Goodbye!")
+        print("\nExiting voice assistant demo. Goodbye!")
     finally:
         pipeline.close()
 
