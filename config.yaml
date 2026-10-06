@@ -1,0 +1,57 @@
+# ==============================================================================
+# AGE - MY BEST FRIEND AI Configuration
+# Offline Desktop Voice Assistant & Hand Mouse
+# ==============================================================================
+
+server:
+  host: "127.0.0.1"        # SECURITY RULE 1: Bind to 127.0.0.1 ONLY, never 0.0.0.0
+  port: 8765
+  allowed_origins:
+    - "http://127.0.0.1:8765"
+    - "http://localhost:8765"
+  token_file: "data/sessions/session.token"
+
+safety:
+  # SECURITY RULE 4: Apps can only be launched from an allowlist, never arbitrary strings.
+  app_allowlist:
+    notepad: "notepad.exe"
+    calc: "calc.exe"
+    chrome: "chrome.exe"
+    edge: "msedge.exe"
+    explorer: "explorer.exe"
+    vscode: "code.cmd"
+
+  # SECURITY RULE 5: Destructive actions ALWAYS require spoken or button confirmation
+  destructive_actions:
+    - "shutdown"
+    - "restart"
+    - "delete_file"
+    - "close_all_windows"
+    - "overwrite_layout"
+
+  # SECURITY RULE 10: Emergency-stop hotkey
+  emergency_stop_hotkey: "ctrl+shift+esc"
+
+logging:
+  log_file: "data/logs/age.log"
+  max_bytes: 5242880       # 5 MB per file
+  backup_count: 5          # 5 rotated archives
+  log_level: "INFO"
+
+voice:
+  wake_word: "Hey AGE"
+  wake_word_backup_hotkey: "ctrl+space"
+  vad_sensitivity: 0.5
+  whisper_model: "base.en"
+  sample_rate: 16000
+
+brain:
+  ollama_endpoint: "http://127.0.0.1:11434"
+  model_name: "qwen2.5:3b"
+  timeout_seconds: 15.0
+
+storage:
+  data_dir: "data"
+  logs_dir: "data/logs"
+  sessions_dir: "data/sessions"
+  layout_db: "data/layout.db"
