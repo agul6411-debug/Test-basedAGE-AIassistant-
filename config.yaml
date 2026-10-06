@@ -56,3 +56,26 @@ storage:
   logs_dir: "data/logs"
   sessions_dir: "data/sessions"
   layout_db: "data/layout.db"
+
+hand_mouse:
+  camera_index: 0
+  fps_limit: 30
+  resolution:
+    width: 640
+    height: 480
+  sensitivity: 1.2
+  dead_zone_px: 6.0
+  pinch_threshold: 0.05
+  drag_delay_sec: 0.3
+  missing_hand_timeout_sec: 10.0
+  ipc_host: "127.0.0.1"
+  ipc_port: 8766
+  smoothing:
+    min_cutoff: 1.0
+    beta: 0.007
+    d_cutoff: 1.0
+  active_region:
+    x_min: 0.2
+    x_max: 0.8
+    y_min: 0.2
+    y_max: 0.8

@@ -94,6 +94,45 @@ class StorageConfig(BaseModel):
     layout_db: str = Field(default="data/layout.db")
 
 
+class OneEuroFilterConfig(BaseModel):
+    """Parameters for One Euro smoothing filter."""
+    min_cutoff: float = Field(default=1.0, gt=0.0)
+    beta: float = Field(default=0.007, ge=0.0)
+    d_cutoff: float = Field(default=1.0, gt=0.0)
+
+
+class ActiveRegionConfig(BaseModel):
+    """Normalized camera bounds mapped to screen resolution."""
+    x_min: float = Field(default=0.2, ge=0.0, le=1.0)
+    x_max: float = Field(default=0.8, ge=0.0, le=1.0)
+    y_min: float = Field(default=0.2, ge=0.0, le=1.0)
+    y_max: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class HandMouseConfig(BaseModel):
+    """Configuration for hand-gesture mouse subprocess."""
+    camera_index: int = Field(default=0, ge=0)
+    fps_limit: int = Field(default=30, ge=10, le=60)
+    sensitivity: float = Field(default=1.2, gt=0.0)
+    dead_zone_px: float = Field(default=6.0, ge=0.0)
+    pinch_threshold: float = Field(default=0.05, gt=0.0)
+    drag_delay_sec: float = Field(default=0.3, gt=0.0)
+    missing_hand_timeout_sec: float = Field(default=10.0, gt=0.0)
+    ipc_host: str = Field(default="127.0.0.1")
+    ipc_port: int = Field(default=8766, ge=1024, le=65535)
+    smoothing: OneEuroFilterConfig = Field(default_factory=OneEuroFilterConfig)
+    active_region: ActiveRegionConfig = Field(default_factory=ActiveRegionConfig)
+
+    @field_validator("ipc_host")
+    @classmethod
+    def validate_ipc_host(cls, v: str) -> str:
+        """Security Rule 1: Bind to loopback 127.0.0.1 only."""
+        clean = v.strip().lower()
+        if clean not in ("127.0.0.1", "localhost"):
+            raise ValueError(f"SECURITY VIOLATION: Hand mouse IPC host must be loopback, got '{v}'.")
+        return clean
+
+
 class AppConfig(BaseModel):
     """Complete validated configuration tree."""
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -102,6 +141,7 @@ class AppConfig(BaseModel):
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     brain: BrainConfig = Field(default_factory=BrainConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    hand_mouse: HandMouseConfig = Field(default_factory=HandMouseConfig)
 
 
 def load_config(config_path: str | Path | None = None) -> AppConfig:

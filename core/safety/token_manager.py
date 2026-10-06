@@ -86,3 +86,31 @@ class SessionTokenManager:
         if not candidate_token or not expected_token:
             return False
         return hmac.compare_digest(candidate_token.strip(), expected_token.strip())
+
+
+def get_default_token_manager() -> SessionTokenManager:
+    """Get SessionTokenManager configured from application config."""
+    from core.config import load_config
+    cfg = load_config()
+    return SessionTokenManager(token_path=cfg.server.token_file)
+
+
+def read_token() -> str:
+    """Read active session token or generate a new one if missing."""
+    mgr = get_default_token_manager()
+    try:
+        return mgr.read_token()
+    except TokenError:
+        return mgr.generate_token()
+
+
+def verify_token(candidate_token: str) -> bool:
+    """Verify candidate token against the current active session token."""
+    if not candidate_token:
+        return False
+    mgr = get_default_token_manager()
+    try:
+        expected = mgr.read_token()
+        return SessionTokenManager.verify_token(candidate_token, expected)
+    except TokenError:
+        return False
