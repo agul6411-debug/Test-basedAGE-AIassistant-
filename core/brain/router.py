@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.brain.ollama_client import OFFLINE_MESSAGE, OllamaClient
 from core.logger import get_logger
 from core.safety.action_logger import ActionLogger
 from core.safety.confirmation import ConfirmationManager
@@ -36,15 +37,28 @@ class CommandRouter:
         self,
         confirmation_manager: ConfirmationManager | None = None,
         action_logger: ActionLogger | None = None,
+        ollama_client: OllamaClient | None = None,
+        enable_llm_fallback: bool = True,
     ) -> None:
         """Initialize CommandRouter.
 
         Args:
             confirmation_manager: Manager for confirming dangerous actions (Rule 5).
             action_logger: Action audit logger (Rule 12).
+            ollama_client: Optional Ollama client for Layer 2 fallback.
+            enable_llm_fallback: Whether to instantiate OllamaClient if not provided.
         """
         self.confirmation_manager = confirmation_manager or ConfirmationManager()
         self.action_logger = action_logger or ActionLogger()
+        if ollama_client is not None:
+            self.ollama_client = ollama_client
+        elif enable_llm_fallback:
+            self.ollama_client = OllamaClient(
+                confirmation_manager=self.confirmation_manager,
+                action_logger=self.action_logger,
+            )
+        else:
+            self.ollama_client = None
 
     def sanitize_input(self, raw_text: str) -> str:
         """Sanitize raw transcribed speech or user input.
@@ -187,6 +201,27 @@ class CommandRouter:
         intent = self.route_intent(clean_text)
         if not intent:
             logger.info("No Layer 1 rule matched for input: '%s'", clean_text)
+            if self.ollama_client:
+                logger.info("Falling back to Layer 2 Ollama LLM...")
+                llm_res = self.ollama_client.chat(
+                    prompt=clean_text,
+                    voice_pipeline=voice_pipeline,
+                    force_confirmed=force_confirmed,
+                )
+                if not llm_res.success and llm_res.message == OFFLINE_MESSAGE:
+                    return CommandResult(
+                        matched=False,
+                        success=False,
+                        message=OFFLINE_MESSAGE,
+                    )
+                return CommandResult(
+                    matched=True,
+                    success=llm_res.success,
+                    message=llm_res.message,
+                    tool_name=llm_res.data.get("tool_name"),
+                    data=llm_res.data,
+                )
+
             return CommandResult(
                 matched=False,
                 message=f"I didn't recognize the command: '{clean_text}'.",

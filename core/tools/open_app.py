@@ -14,6 +14,8 @@ from core.safety.process_runner import ProcessSecurityError, SafeProcessRunner
 from core.tools.base import BaseTool, ToolResult
 from core.tools.registry import registry
 
+ALLOWED_APPLICATIONS = {"notepad", "calc", "chrome", "edge", "explorer", "vscode"}
+
 
 class OpenAppSchema(BaseModel):
     """Schema for opening an application."""

@@ -48,6 +48,7 @@ voice:
 brain:
   ollama_endpoint: "http://127.0.0.1:11434"
   model_name: "qwen2.5:3b"
+  keep_alive: "15m"
   timeout_seconds: 15.0
 
 storage:

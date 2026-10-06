@@ -65,7 +65,17 @@ class BrainConfig(BaseModel):
 
     ollama_endpoint: str = Field(default="http://127.0.0.1:11434")
     model_name: str = Field(default="qwen2.5:3b")
+    keep_alive: str = Field(default="15m")
     timeout_seconds: float = Field(default=15.0, gt=0.0)
+
+    @field_validator("ollama_endpoint")
+    @classmethod
+    def validate_ollama_endpoint(cls, v: str) -> str:
+        """Security Rule 1 & 7: Connect to localhost loopback ONLY."""
+        clean = v.strip().lower()
+        if not clean.startswith(("http://127.0.0.1", "http://localhost")):
+            raise ValueError(f"SECURITY VIOLATION: Ollama endpoint must be localhost/127.0.0.1, got '{v}'.")
+        return v.strip()
 
 
 class LoggingConfig(BaseModel):
