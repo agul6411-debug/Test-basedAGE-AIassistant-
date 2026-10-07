@@ -80,3 +80,34 @@ class ActionLogger:
             f.write(json.dumps(entry) + "\n")
 
         return entry
+
+    def get_recent_logs(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Read recent action log entries.
+
+        Args:
+            limit: Maximum number of recent entries to return.
+
+        Returns:
+            List of log entry dictionaries, newest first.
+        """
+        if not self.log_path.exists():
+            return []
+
+        entries = []
+        try:
+            with open(self.log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    clean = line.strip()
+                    if clean:
+                        try:
+                            entries.append(json.loads(clean))
+                            if len(entries) >= limit:
+                                break
+                        except json.JSONDecodeError:
+                            continue
+        except OSError:
+            return []
+
+        return entries
+
