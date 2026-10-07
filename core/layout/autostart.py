@@ -94,3 +94,20 @@ class AutostartManager:
         if should_enable:
             return self.enable()
         return self.disable()
+
+
+if __name__ == "__main__":
+    mgr = AutostartManager()
+    if "--enable" in sys.argv:
+        success = mgr.enable()
+        print(f"Autostart enabled: {success}")
+        sys.exit(0 if success else 1)
+    elif "--disable" in sys.argv:
+        success = mgr.disable()
+        print(f"Autostart disabled: {success}")
+        sys.exit(0 if success else 1)
+    else:
+        enabled = mgr.is_enabled()
+        print(f"Autostart status: {'ENABLED' if enabled else 'DISABLED'}")
+        sys.exit(0)
+

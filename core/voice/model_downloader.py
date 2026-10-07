@@ -141,3 +141,10 @@ def ensure_voice_models(models_dir: Path | str | None = None) -> dict[str, Path]
     verified_paths["whisper_model_dir"] = whisper_dir
 
     return verified_paths
+
+
+if __name__ == "__main__":
+    print("Checking and downloading offline voice models...")
+    ensure_voice_models()
+    print("All voice models verified.")
+
