@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'core_client.dart';
@@ -12,6 +13,8 @@ import 'widgets/header.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Security Rule 7: Strictly disable outbound runtime network calls for fonts
+  GoogleFonts.config.allowRuntimeFetching = false;
   runApp(
     ChangeNotifierProvider(
       create: (_) => CoreClient(),
