@@ -133,6 +133,14 @@ class HandMouseConfig(BaseModel):
         return clean
 
 
+class LayoutConfig(BaseModel):
+    """Desktop layout snapshot and autostart configuration."""
+    autosave_interval_sec: int = Field(default=300, ge=30)
+    max_snapshots: int = Field(default=10, ge=1, le=100)
+    autostart_enabled: bool = Field(default=False)
+    task_name: str = Field(default="AGE_Assistant")
+
+
 class AppConfig(BaseModel):
     """Complete validated configuration tree."""
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -142,6 +150,7 @@ class AppConfig(BaseModel):
     brain: BrainConfig = Field(default_factory=BrainConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     hand_mouse: HandMouseConfig = Field(default_factory=HandMouseConfig)
+    layout: LayoutConfig = Field(default_factory=LayoutConfig)
 
 
 def load_config(config_path: str | Path | None = None) -> AppConfig:

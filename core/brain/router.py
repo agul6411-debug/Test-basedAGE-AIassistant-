@@ -176,7 +176,15 @@ class CommandRouter:
         if re.search(r'^(?:restart|reboot)\s+(?:the\s+)?(?:pc|computer|system|laptop)$', text) or text in ("restart", "reboot"):
             return "restart", {}
 
+        # 12. Desktop Layout Management (Save safe, Restore dangerous)
+        if re.search(r'^(?:save|backup)\s+(?:my\s+)?(?:desktop|layout)$', text):
+            return "save_layout", {}
+
+        if re.search(r'^(?:restore|load)\s+(?:my\s+)?(?:desktop|layout)$', text):
+            return "restore_layout", {}
+
         return None
+
 
     def execute_command(
         self,

@@ -79,3 +79,9 @@ hand_mouse:
     x_max: 0.8
     y_min: 0.2
     y_max: 0.8
+
+layout:
+  autosave_interval_sec: 300
+  max_snapshots: 10
+  autostart_enabled: false
+  task_name: "AGE_Assistant"

@@ -16,6 +16,10 @@ def test_load_default_config():
     assert config.safety.emergency_stop_hotkey == "ctrl+shift+esc"
     assert config.logging.log_file == "data/logs/age.log"
     assert config.logging.max_bytes > 0
+    assert config.layout.autosave_interval_sec == 300
+    assert config.layout.max_snapshots == 10
+    assert config.layout.autostart_enabled is False
+    assert config.layout.task_name == "AGE_Assistant"
 
 
 def test_server_config_rejects_wildcard():

@@ -7,6 +7,8 @@ from core.tools import (
     lock_screen,
     open_app,
     restart,
+    restore_layout,
+    save_layout,
     set_brightness,
     set_volume,
     shutdown,
@@ -27,6 +29,8 @@ __all__ = [
     "open_app",
     "registry",
     "restart",
+    "restore_layout",
+    "save_layout",
     "set_brightness",
     "set_volume",
     "shutdown",
@@ -34,3 +38,4 @@ __all__ = [
     "web_search",
     "youtube_search",
 ]
+

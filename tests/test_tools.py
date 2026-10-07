@@ -23,6 +23,8 @@ def test_all_tools_registered():
         "shutdown",
         "restart",
         "close_all",
+        "save_layout",
+        "restore_layout",
     }
     for tool_name in expected_tools:
         assert tool_name in registry
@@ -34,7 +36,7 @@ def test_all_tools_registered():
 
 def test_dangerous_flags():
     # Only dangerous tools must have is_dangerous == True
-    dangerous_tools = {"shutdown", "restart", "close_all"}
+    dangerous_tools = {"shutdown", "restart", "close_all", "restore_layout"}
     for tool in registry.list_tools():
         if tool.name in dangerous_tools:
             assert tool.is_dangerous is True

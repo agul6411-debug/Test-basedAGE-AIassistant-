@@ -49,6 +49,18 @@ def test_route_dangerous_tools(router: CommandRouter):
     assert router.route_intent("shutdown")[0] == "shutdown"
     assert router.route_intent("restart")[0] == "restart"
     assert router.route_intent("close all")[0] == "close_all"
+    assert router.route_intent("restore my desktop")[0] == "restore_layout"
+
+
+def test_route_layout_commands(router: CommandRouter):
+    assert router.route_intent("save my desktop") == ("save_layout", {})
+    assert router.route_intent("save desktop") == ("save_layout", {})
+    assert router.route_intent("save layout") == ("save_layout", {})
+    assert router.route_intent("backup layout") == ("save_layout", {})
+    assert router.route_intent("restore my desktop") == ("restore_layout", {})
+    assert router.route_intent("restore desktop") == ("restore_layout", {})
+    assert router.route_intent("restore layout") == ("restore_layout", {})
+
 
 
 # ==============================================================================
