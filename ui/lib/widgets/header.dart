@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core_client.dart';
 import '../theme.dart';
+import 'settings_dialog.dart';
 
 class AgeHeader extends StatelessWidget implements PreferredSizeWidget {
   const AgeHeader({super.key});
@@ -35,23 +36,34 @@ class AgeHeader extends StatelessWidget implements PreferredSizeWidget {
               // App Logo & Title
               Row(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AgeTheme.amberAccent.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AgeTheme.amberAccent, width: 1.5),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'A',
-                        style: TextStyle(
-                          color: AgeTheme.amberAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AgeTheme.amberAccent.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AgeTheme.amberAccent, width: 1.5),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'A',
+                              style: TextStyle(
+                                color: AgeTheme.amberAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -127,22 +139,28 @@ class AgeHeader extends StatelessWidget implements PreferredSizeWidget {
                 activeColor: AgeTheme.amberAccent,
                 compact: isNarrow,
               ),
-              const SizedBox(width: 6),
-              _StatusPill(
-                icon: Icons.videocam,
-                label: 'Camera',
-                isActive: status.cameraActive,
-                activeColor: AgeTheme.mintSuccess,
-                compact: isNarrow,
-              ),
-              const SizedBox(width: 6),
-              _StatusPill(
-                icon: Icons.security,
-                label: '100% Offline',
-                isActive: true,
-                activeColor: AgeTheme.mintSuccess,
-                compact: isNarrow,
-              ),
+              if (!isVeryNarrow) ...[
+                const SizedBox(width: 6),
+                _StatusPill(
+                  icon: Icons.videocam,
+                  label: 'Camera',
+                  isActive: status.cameraActive,
+                  activeColor: AgeTheme.mintSuccess,
+                  compact: isNarrow,
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => GroqSettingsDialog.show(context),
+                  borderRadius: BorderRadius.circular(16),
+                  child: _StatusPill(
+                    icon: Icons.bolt,
+                    label: client.isGroqConfigured ? 'Groq 70B' : 'Setup Groq',
+                    isActive: true,
+                    activeColor: client.isGroqConfigured ? AgeTheme.mintSuccess : AgeTheme.amberAccent,
+                    compact: isNarrow,
+                  ),
+                ),
+              ],
 
               const SizedBox(width: 12),
 

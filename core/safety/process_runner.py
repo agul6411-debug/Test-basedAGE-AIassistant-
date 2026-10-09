@@ -9,7 +9,10 @@ Apps can only be launched from an allowlist in config.yaml, never from arbitrary
 """
 
 # Safe wrapper layer strictly enforcing shell=False and argument lists
+import os
+import shutil
 import subprocess  # nosec: B404
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -22,6 +25,51 @@ class ProcessSecurityError(SecurityException):
 
 class SafeProcessRunner:
     """Enforces strict process spawning security rules."""
+
+    @staticmethod
+    def resolve_executable_path(executable: str) -> str:
+        """Resolve executable path, checking absolute path, PATH, and Windows App Paths registry.
+
+        Args:
+            executable: File name or path of the executable.
+
+        Returns:
+            Resolved executable path or the original string.
+        """
+        expanded = os.path.expandvars(executable).strip('"')
+        path_obj = Path(expanded)
+        if path_obj.is_absolute() and path_obj.exists():
+            return str(path_obj)
+
+        which_path = shutil.which(expanded)
+        if which_path:
+            return which_path
+
+        if sys.platform == "win32":
+            try:
+                import winreg
+
+                target_names = [expanded]
+                if not expanded.lower().endswith(".exe"):
+                    target_names.append(f"{expanded}.exe")
+
+                for name in target_names:
+                    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+                        try:
+                            with winreg.OpenKey(
+                                root, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{name}"
+                            ) as key:
+                                val, _ = winreg.QueryValueEx(key, "")
+                                if val:
+                                    val_expanded = os.path.expandvars(str(val).strip('"'))
+                                    if Path(val_expanded).exists():
+                                        return val_expanded
+                        except OSError:
+                            pass
+            except ImportError:
+                pass
+
+        return expanded
 
     @staticmethod
     def run_command(
@@ -84,7 +132,7 @@ class SafeProcessRunner:
             subprocess.Popen instance of the launched process.
 
         Raises:
-            ProcessSecurityError: If app_name is not in the allowlist.
+            ProcessSecurityError: If app_name is not in the allowlist or launch fails.
         """
         normalized_name = app_name.strip().lower()
         if normalized_name not in allowlist:
@@ -93,11 +141,17 @@ class SafeProcessRunner:
             )
 
         executable = allowlist[normalized_name]
-        cmd = [executable]
+        resolved_exe = SafeProcessRunner.resolve_executable_path(executable)
+        cmd = [resolved_exe]
         if extra_args:
             if isinstance(extra_args, (str, bytes)):
                 raise ProcessSecurityError("Extra arguments must be a list of strings, not a string.")
             cmd.extend([str(a) for a in extra_args])
 
-        # shell=False is strictly enforced on allowlisted binaries
-        return subprocess.Popen(cmd, shell=False, text=True)  # nosec: B603
+        try:
+            # shell=False is strictly enforced on allowlisted binaries
+            return subprocess.Popen(cmd, shell=False, text=True)  # nosec: B603
+        except (FileNotFoundError, OSError) as e:
+            raise ProcessSecurityError(
+                f"Application executable could not be launched for '{app_name}' ({resolved_exe}): {e}"
+            ) from e

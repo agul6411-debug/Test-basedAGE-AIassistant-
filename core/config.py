@@ -63,10 +63,16 @@ class BrainConfig(BaseModel):
     """Brain routing and local LLM settings."""
     model_config = {"protected_namespaces": ()}
 
+    provider: str = Field(default="groq")  # "groq" or "ollama"
+    groq_api_key: str = Field(default="")
+    groq_model: str = Field(default="qwen/qwen3.8-27b")
     ollama_endpoint: str = Field(default="http://127.0.0.1:11434")
     model_name: str = Field(default="qwen2.5:3b")
-    keep_alive: str = Field(default="15m")
-    timeout_seconds: float = Field(default=15.0, gt=0.0)
+    keep_alive: str = Field(default="-1")
+    timeout_seconds: float = Field(default=45.0, gt=0.0)
+    max_history_turns: int = Field(default=10, ge=1, le=50)
+
+
 
     @field_validator("ollama_endpoint")
     @classmethod
@@ -96,27 +102,34 @@ class StorageConfig(BaseModel):
 
 class OneEuroFilterConfig(BaseModel):
     """Parameters for One Euro smoothing filter."""
-    min_cutoff: float = Field(default=1.0, gt=0.0)
-    beta: float = Field(default=0.007, ge=0.0)
+    min_cutoff: float = Field(default=0.6, gt=0.0)
+    beta: float = Field(default=0.003, ge=0.0)
     d_cutoff: float = Field(default=1.0, gt=0.0)
 
 
 class ActiveRegionConfig(BaseModel):
     """Normalized camera bounds mapped to screen resolution."""
-    x_min: float = Field(default=0.2, ge=0.0, le=1.0)
-    x_max: float = Field(default=0.8, ge=0.0, le=1.0)
-    y_min: float = Field(default=0.2, ge=0.0, le=1.0)
-    y_max: float = Field(default=0.8, ge=0.0, le=1.0)
+    x_min: float = Field(default=0.12, ge=0.0, le=1.0)
+    x_max: float = Field(default=0.88, ge=0.0, le=1.0)
+    y_min: float = Field(default=0.12, ge=0.0, le=1.0)
+    y_max: float = Field(default=0.88, ge=0.0, le=1.0)
+
+
+class ResolutionConfig(BaseModel):
+    """Camera capture resolution."""
+    width: int = Field(default=640, ge=320, le=1920)
+    height: int = Field(default=480, ge=240, le=1080)
 
 
 class HandMouseConfig(BaseModel):
     """Configuration for hand-gesture mouse subprocess."""
     camera_index: int = Field(default=0, ge=0)
     fps_limit: int = Field(default=30, ge=10, le=60)
-    sensitivity: float = Field(default=1.2, gt=0.0)
-    dead_zone_px: float = Field(default=6.0, ge=0.0)
-    pinch_threshold: float = Field(default=0.05, gt=0.0)
-    drag_delay_sec: float = Field(default=0.3, gt=0.0)
+    resolution: ResolutionConfig = Field(default_factory=ResolutionConfig)
+    sensitivity: float = Field(default=1.0, gt=0.0)
+    dead_zone_px: float = Field(default=8.0, ge=0.0)
+    pinch_threshold: float = Field(default=0.08, gt=0.0)
+    drag_delay_sec: float = Field(default=0.45, gt=0.0)
     missing_hand_timeout_sec: float = Field(default=10.0, gt=0.0)
     ipc_host: str = Field(default="127.0.0.1")
     ipc_port: int = Field(default=8766, ge=1024, le=65535)

@@ -56,6 +56,7 @@ def test_ollama_offline_returns_thinking_engine_offline():
 def test_router_falls_back_to_offline_ollama():
     client = OllamaClient(base_url="http://127.0.0.1:59999", timeout_sec=0.5)
     router = CommandRouter(ollama_client=client)
+    router.groq_client = None
 
     # Input that has no Layer 1 rule match
     result = router.execute_command("Why does the moon have craters?")

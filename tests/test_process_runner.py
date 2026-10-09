@@ -36,3 +36,15 @@ def test_launch_allowlisted_app_rejects_unlisted():
     allowlist = {"notepad": "notepad.exe"}
     with pytest.raises(ProcessSecurityError):
         SafeProcessRunner.launch_allowlisted_app("malicious_app", allowlist)
+
+
+def test_resolve_executable_path():
+    # Absolute path to python executable
+    resolved = SafeProcessRunner.resolve_executable_path(sys.executable)
+    assert resolved == sys.executable
+
+
+def test_launch_allowlisted_app_missing_binary():
+    allowlist = {"missing_app": "this_file_definitely_does_not_exist_12345.exe"}
+    with pytest.raises(ProcessSecurityError, match="could not be launched"):
+        SafeProcessRunner.launch_allowlisted_app("missing_app", allowlist)

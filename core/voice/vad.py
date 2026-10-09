@@ -33,12 +33,14 @@ class SileroVAD:
 
         self._session = ort.InferenceSession(str(path), session_options, providers=["CPUExecutionProvider"])
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._tail = np.zeros(64, dtype=np.float32)
         self._sr = np.array(16000, dtype=np.int64)
         logger.info("Silero VAD initialized on CPU from %s", path)
 
     def reset(self) -> None:
-        """Reset internal recurrent state."""
+        """Reset internal recurrent state and rolling context tail."""
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._tail = np.zeros(64, dtype=np.float32)
 
     def process_frame(self, pcm_frame: np.ndarray) -> float:
         """Process 512 samples (32ms at 16kHz) and return speech probability.
@@ -54,12 +56,16 @@ class SileroVAD:
 
         # Convert int16 PCM to normalized float32 [-1.0, 1.0]
         if pcm_frame.dtype == np.int16:
-            audio_float = (pcm_frame.astype(np.float32) / 32768.0).reshape(1, 512)
+            audio_float = (pcm_frame.astype(np.float32) / 32768.0)
         else:
-            audio_float = pcm_frame.astype(np.float32).reshape(1, 512)
+            audio_float = pcm_frame.astype(np.float32)
+
+        # Silero VAD v5 requires 576 samples: 64 samples rolling context + 512 frame samples
+        input_tensor = np.concatenate([self._tail, audio_float]).reshape(1, 576).astype(np.float32)
+        self._tail = audio_float[-64:].copy()
 
         inputs = {
-            "input": audio_float,
+            "input": input_tensor,
             "state": self._state,
             "sr": self._sr,
         }
@@ -78,8 +84,8 @@ class SpeechEndpointDetector:
     def __init__(
         self,
         vad: SileroVAD | None = None,
-        speech_threshold: float = 0.5,
-        silence_duration_sec: float = 0.7,
+        speech_threshold: float = 0.38,
+        silence_duration_sec: float = 1.2,
         max_duration_sec: float = 15.0,
         sample_rate: int = 16000,
         frame_size: int = 512,
@@ -106,20 +112,27 @@ class SpeechEndpointDetector:
         self.silence_frame_limit = int(self.silence_duration_sec / self.frame_duration)
         self.max_frame_limit = int(self.max_duration_sec / self.frame_duration)
 
-    def record_until_silence(self, frame_generator) -> np.ndarray:
+    def record_until_silence(
+        self,
+        frame_generator,
+        initial_frames: list[np.ndarray] | None = None,
+        speech_already_started: bool = False,
+    ) -> np.ndarray:
         """Consume frames from generator until speech begins and finishes.
 
         Args:
             frame_generator: Generator yielding 512-sample PCM int16 frames.
+            initial_frames: Optional audio frames recorded before trigger to prepend.
+            speech_already_started: Whether speech onset was already detected.
 
         Returns:
             Concatenated in-memory 1D int16 NumPy array of spoken audio.
         """
         self.vad.reset()
-        recorded_frames: list[np.ndarray] = []
-        speech_started = False
+        recorded_frames: list[np.ndarray] = list(initial_frames) if initial_frames else []
+        speech_started = speech_already_started or (len(recorded_frames) > 0)
         consecutive_silence_frames = 0
-        total_frames = 0
+        total_frames = len(recorded_frames)
 
         for frame in frame_generator:
             if frame is None or len(frame) != self.frame_size:
@@ -136,9 +149,13 @@ class SpeechEndpointDetector:
                     consecutive_silence_frames = 0
                     logger.debug("Speech onset detected (prob=%.3f)", prob)
                 else:
-                    # Keep rolling history of last 5 frames (~160ms pre-roll)
-                    if len(recorded_frames) > 5:
+                    # Keep rolling history of last 15 frames (~480ms pre-roll)
+                    if len(recorded_frames) > 15:
                         recorded_frames.pop(0)
+                    # If nobody spoke within 5.0s after listening started, time out early
+                    if total_frames >= int(5.0 / self.frame_duration):
+                        logger.info("Speech onset timeout reached (5.0s).")
+                        break
             else:
                 if is_speaking:
                     consecutive_silence_frames = 0
@@ -152,7 +169,7 @@ class SpeechEndpointDetector:
                 logger.info("Maximum speech recording limit reached (%.1fs)", self.max_duration_sec)
                 break
 
-        if not recorded_frames:
+        if not speech_started or not recorded_frames:
             return np.array([], dtype=np.int16)
 
         return np.concatenate(recorded_frames)

@@ -9,6 +9,7 @@ Logs live only inside data/.
 
 import logging
 import re
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -72,7 +73,8 @@ def setup_logger(
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     # Security Rule 13: Strictly confine log files to data/logs
-    safe_log_path = validate_path_within_root(log_file, logs_dir)
+    clean_log_file = Path(log_file).name if str(log_file).replace("\\", "/").startswith("data/logs/") else log_file
+    safe_log_path = validate_path_within_root(clean_log_file, logs_dir)
 
     logger = logging.getLogger(logger_name)
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -99,10 +101,11 @@ def setup_logger(
     file_handler.setLevel(numeric_level)
     logger.addHandler(file_handler)
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(numeric_level)
-    logger.addHandler(console_handler)
+    # Console handler (safely guard for pythonw.exe where sys.stderr is None)
+    if sys.stderr is not None:
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(numeric_level)
+        logger.addHandler(console_handler)
 
     return logger

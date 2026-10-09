@@ -64,7 +64,8 @@ class SpeechToText:
             audio_float,
             language="en",
             beam_size=1,  # Greedy / beam_size=1 for lowest latency on CPU
-            vad_filter=False,  # External Silero VAD already applied
+            initial_prompt="Hey AGE, stop, okey stop, okay stop, ruko, chup, open notepad, calculator, chrome, edge, vscode, word, excel, powerpoint, paint, downloads, documents, desktop, youtube, volume, awaz, brightness, roshni, kholo, band karo, chalao, search, time, date.",
+            hotwords="AGE stop okey okay ruko chup chrome edge vscode word excel powerpoint paint notepad calculator downloads desktop documents youtube volume awaz brightness roshni kholo chalao band karo",
         )
 
         text_parts = [segment.text.strip() for segment in segments]

@@ -12,6 +12,7 @@ import ctypes
 import signal
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -64,9 +65,11 @@ class HandMouseApp:
             filter_beta=hm_cfg.smoothing.beta,
         )
 
+        res_w = getattr(hm_cfg.resolution, "width", 640) if hasattr(hm_cfg, "resolution") else 640
+        res_h = getattr(hm_cfg.resolution, "height", 480) if hasattr(hm_cfg, "resolution") else 480
         self.camera = CameraCapture(
             camera_index=hm_cfg.camera_index,
-            resolution=(hm_cfg.resolution.width, hm_cfg.resolution.height),
+            resolution=(res_w, res_h),
             fps_limit=hm_cfg.fps_limit,
         )
 
@@ -161,17 +164,36 @@ class HandMouseApp:
         self._running = True
         self._last_hand_time = time.time()
 
-        # Initialize MediaPipe Hands solution
-        mp_hands = mp.solutions.hands
-        hands = mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.7,
-        )
+        # Initialize MediaPipe Hands detector (supports MediaPipe Tasks and legacy solutions)
+        model_path = Path(__file__).resolve().parent.parent / "models" / "hand_landmarker.task"
+        use_tasks_api = not hasattr(mp, "solutions")
+
+        if use_tasks_api:
+            from mediapipe.tasks import python as mp_python
+            from mediapipe.tasks.python import vision
+
+            base_options = mp_python.BaseOptions(model_asset_path=str(model_path))
+            options = vision.HandLandmarkerOptions(
+                base_options=base_options,
+                num_hands=1,
+                min_hand_detection_confidence=0.7,
+                min_tracking_confidence=0.7,
+                running_mode=vision.RunningMode.IMAGE,
+            )
+            hands_detector = vision.HandLandmarker.create_from_options(options)
+        else:
+            mp_hands = mp.solutions.hands
+            hands_detector = mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=1,
+                min_detection_confidence=0.7,
+                min_tracking_confidence=0.7,
+            )
 
         window_name = "AGE Camera Indicator - Hand Mouse"
-        cv2.namedWindow(window_name, cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(window_name, 560, 420)
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
 
         try:
             while self._running:
@@ -182,8 +204,18 @@ class HandMouseApp:
 
                 now = time.time()
                 # Run hand landmark inference (memory-only buffer)
-                results = hands.process(frame_rgb)
-                hand_found = results.multi_hand_landmarks is not None and len(results.multi_hand_landmarks) > 0
+                landmarks = None
+                if use_tasks_api:
+                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+                    results = hands_detector.detect(mp_image)
+                    hand_found = bool(results.hand_landmarks and len(results.hand_landmarks) > 0)
+                    if hand_found:
+                        landmarks = results.hand_landmarks[0]
+                else:
+                    results = hands_detector.process(frame_rgb)
+                    hand_found = results.multi_hand_landmarks is not None and len(results.multi_hand_landmarks) > 0
+                    if hand_found:
+                        landmarks = results.multi_hand_landmarks[0].landmark
 
                 if hand_found:
                     self._last_hand_time = now
@@ -202,15 +234,24 @@ class HandMouseApp:
                     self.detector.reset()
 
                 # Process gestures if active and not paused
-                if hand_found and not self._paused:
-                    landmarks = results.multi_hand_landmarks[0].landmark
+                is_pinching = False
+                if hand_found and not self._paused and landmarks is not None:
                     event = self.detector.process_landmarks(landmarks, timestamp=now)
+                    is_pinching = getattr(event, "is_pinching", False)
                     self._dispatch_gesture_event(event)
                 elif not hand_found:
                     self.detector.reset()
 
                 # Security Rule 11: Render visible on-screen camera indicator
-                self._render_indicator(window_name, frame_rgb, hand_found, self._paused)
+                self._render_indicator(
+                    window_name,
+                    frame_rgb,
+                    hand_found,
+                    self._paused,
+                    landmarks=landmarks if hand_found else None,
+                    is_pinching=is_pinching,
+                    is_dragging=self._is_dragging,
+                )
 
                 # Check GUI window events
                 key = cv2.waitKey(1) & 0xFF
@@ -221,7 +262,7 @@ class HandMouseApp:
         except KeyboardInterrupt:
             logger.info("Hand mouse interrupted by user.")
         finally:
-            hands.close()
+            hands_detector.close()
             self.stop()
             logger.info("AGE Hand Mouse Subprocess exited cleanly.")
 
@@ -235,7 +276,7 @@ class HandMouseApp:
         elif action == GestureAction.CLICK:
             self.mouse.position = (event.cursor_x, event.cursor_y)
             self.mouse.click(Button.left)
-            logger.debug("Left click dispatched at (%d, %d)", event.cursor_x, event.cursor_y)
+            logger.info("Left click executed at (%d, %d)", event.cursor_x, event.cursor_y)
 
         elif action == GestureAction.MOUSE_DOWN:
             self.mouse.position = (event.cursor_x, event.cursor_y)
@@ -259,34 +300,69 @@ class HandMouseApp:
         frame_rgb: Any,
         hand_detected: bool,
         is_paused: bool,
+        landmarks: Any = None,
+        is_pinching: bool = False,
+        is_dragging: bool = False,
     ) -> None:
         """Render compact visible preview with on-screen camera on/off indicator."""
         # Convert RGB back to BGR for OpenCV display
         bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
-        # Scale down for a compact desktop status widget
-        preview = cv2.resize(bgr, (240, 180))
+        # Render visible desktop status widget at 560x420
+        preview = cv2.resize(bgr, (560, 420))
+        prev_h, prev_w = preview.shape[:2]
+
+        # Draw landmark fingertips if available
+        if landmarks is not None and len(landmarks) >= 21:
+            try:
+                thumb = landmarks[4]
+                index_pip = landmarks[6]
+                index = landmarks[8]
+                tx, ty = int(thumb.x * prev_w), int(thumb.y * prev_h)
+                ix, iy = int(index.x * prev_w), int(index.y * prev_h)
+                px, py = int(index_pip.x * prev_w), int(index_pip.y * prev_h)
+
+                # Bone line index joint to tip
+                cv2.line(preview, (px, py), (ix, iy), (220, 220, 220), 2)
+                cv2.circle(preview, (px, py), 4, (180, 180, 180), -1)
+
+                # Line between thumb and index
+                line_col = (0, 255, 255) if is_pinching else (120, 120, 120)
+                cv2.line(preview, (tx, ty), (ix, iy), line_col, 2)
+
+                # Colored fingertip indicators
+                index_col = (0, 255, 255) if is_pinching else (0, 255, 0)
+                cv2.circle(preview, (tx, ty), 7, (0, 180, 255), -1)
+                cv2.circle(preview, (ix, iy), 7, index_col, -1)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Fingertip preview overlay error: %s", e)
 
         # Status text & color
         if is_paused:
             color = (0, 165, 255)  # Amber / Orange
             status_text = "[PAUSED - HAND MISSING]"
+        elif is_dragging:
+            color = (255, 0, 255)  # Magenta
+            status_text = "[DRAGGING - MOVE HAND]"
+        elif is_pinching:
+            color = (0, 255, 255)  # Cyan
+            status_text = "[CLICK DETECTED - STRAIGHTEN TO CLICK]"
         elif hand_detected:
             color = (0, 255, 0)    # Green
-            status_text = "[CAMERA ACTIVE - HAND DETECTED]"
+            status_text = "[INDEX POINTING - MOVING MOUSE]"
         else:
-            color = (0, 255, 255)  # Yellow
-            status_text = "[CAMERA ACTIVE - SEARCHING]"
+            color = (0, 200, 200)  # Yellow
+            status_text = "[CAMERA ACTIVE - SEARCHING FOR HAND]"
 
         # Draw status banner
-        cv2.rectangle(preview, (0, 0), (240, 28), (20, 20, 20), -1)
-        cv2.circle(preview, (12, 14), 6, color, -1)
+        cv2.rectangle(preview, (0, 0), (560, 34), (20, 20, 20), -1)
+        cv2.circle(preview, (16, 17), 8, color, -1)
         cv2.putText(
             preview,
             status_text,
-            (24, 18),
+            (32, 22),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.35,
+            0.48,
             color,
             1,
             cv2.LINE_AA,

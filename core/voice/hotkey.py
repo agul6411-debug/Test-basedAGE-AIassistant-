@@ -89,3 +89,9 @@ class HotkeyTrigger:
     def is_triggered(self) -> bool:
         """Whether the trigger event has been flagged."""
         return self._event.is_set()
+
+    @property
+    def is_running(self) -> bool:
+        """Whether the hotkey listener is actively running."""
+        return self._is_running
+

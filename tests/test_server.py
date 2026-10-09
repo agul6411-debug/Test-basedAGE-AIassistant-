@@ -207,3 +207,104 @@ async def test_server_emergency_stop_broadcast(test_env):
     finally:
         await server.stop()
 
+
+@pytest.mark.anyio
+async def test_server_serves_token_api(test_env):
+    import asyncio
+    import urllib.request
+
+    server = test_env["server"]
+    token = test_env["token"]
+    port = test_env["port"]
+
+    await server.start()
+    try:
+        def fetch():
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/token") as r:
+                return r.status, json.loads(r.read().decode())
+
+        status_code, body = await asyncio.to_thread(fetch)
+        assert status_code == 200
+        assert body["token"] == token
+    finally:
+        await server.stop()
+
+
+@pytest.mark.anyio
+async def test_server_serves_index_html(test_env):
+    import asyncio
+    import urllib.request
+
+    server = test_env["server"]
+    port = test_env["port"]
+
+    await server.start()
+    try:
+        def fetch():
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as r:
+                return r.status, r.read()
+
+        status_code, content = await asyncio.to_thread(fetch)
+        assert status_code in (200, 503)
+        assert len(content) > 0
+    finally:
+        await server.stop()
+
+
+@pytest.mark.anyio
+async def test_server_voice_continuous_loop_silence_timeout(test_env):
+    server = test_env["server"]
+    mock_pipeline = MagicMock()
+    mock_pipeline.listen.return_value = ""  # Silence
+    server._voice_pipeline = mock_pipeline
+
+    await server._run_voice_cycle(max_silence_cycles=2)
+    assert server.current_state == "idle"
+    assert mock_pipeline.listen.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_server_voice_continuous_loop_exit_phrase(test_env):
+    from core.brain.router import CommandResult
+    server = test_env["server"]
+    mock_pipeline = MagicMock()
+    mock_pipeline.listen.side_effect = ["khuda hafiz"]
+    mock_pipeline.speak.return_value = True
+    server._voice_pipeline = mock_pipeline
+
+    server.router.execute_command.return_value = CommandResult(
+        matched=True,
+        success=True,
+        message="Khuda Hafiz! Apna khayal rakhiyega.",
+        tool_name="chat",
+    )
+
+    await server._run_voice_cycle()
+    assert server.current_state == "idle"
+    assert mock_pipeline.listen.call_count == 1
+    mock_pipeline.speak.assert_called_once_with("Khuda Hafiz! Apna khayal rakhiyega.")
+
+
+@pytest.mark.anyio
+async def test_server_stop_listening_message(test_env):
+    import asyncio
+    server = test_env["server"]
+    token = test_env["token"]
+    port = test_env["port"]
+
+    await server.start()
+    try:
+        uri = f"ws://127.0.0.1:{port}"
+        async with connect(uri) as ws:
+            await ws.send(json.dumps({"type": "auth", "token": token}))
+            await ws.recv()  # auth_result
+            await ws.recv()  # initial status
+
+            await ws.send(json.dumps({"type": "stop_listening"}))
+            await asyncio.sleep(0.1)
+            assert server._stop_listening_requested is True
+            assert server.current_state == "idle"
+    finally:
+        await server.stop()
+
+

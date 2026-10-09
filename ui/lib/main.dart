@@ -85,62 +85,68 @@ class _MainShellState extends State<MainShell> {
       });
     }
 
-    return Scaffold(
-      appBar: const AgeHeader(),
-      body: Row(
-        children: [
-          // Left Sidebar Navigation
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            backgroundColor: AgeTheme.darkSurface,
-            indicatorColor: AgeTheme.amberAccent.withValues(alpha: 0.2),
-            selectedIconTheme: const IconThemeData(color: AgeTheme.amberAccent),
-            unselectedIconTheme: const IconThemeData(color: AgeTheme.textMuted),
-            selectedLabelTextStyle: const TextStyle(
-              color: AgeTheme.amberAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-            unselectedLabelTextStyle: const TextStyle(
-              color: AgeTheme.textMuted,
-              fontSize: 12,
-            ),
-            onDestinationSelected: (idx) {
-              setState(() => _selectedIndex = idx);
-            },
-            labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.mic_none),
-                selectedIcon: Icon(Icons.mic),
-                label: Text('Home'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 650;
+        return Scaffold(
+          appBar: const AgeHeader(),
+          body: Row(
+            children: [
+              // Left Sidebar Navigation
+              NavigationRail(
+                selectedIndex: _selectedIndex,
+                minWidth: isCompact ? 56 : 72,
+                backgroundColor: AgeTheme.darkSurface,
+                indicatorColor: AgeTheme.amberAccent.withValues(alpha: 0.2),
+                selectedIconTheme: const IconThemeData(color: AgeTheme.amberAccent),
+                unselectedIconTheme: const IconThemeData(color: AgeTheme.textMuted),
+                selectedLabelTextStyle: const TextStyle(
+                  color: AgeTheme.amberAccent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelTextStyle: const TextStyle(
+                  color: AgeTheme.textMuted,
+                  fontSize: 11,
+                ),
+                onDestinationSelected: (idx) {
+                  setState(() => _selectedIndex = idx);
+                },
+                labelType: isCompact ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                destinations: const [
+                  NavigationRailDestination(
+                    icon: Icon(Icons.mic_none),
+                    selectedIcon: Icon(Icons.mic),
+                    label: Text('Home'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.tune),
+                    selectedIcon: Icon(Icons.tune),
+                    label: Text('Controls'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.chat_bubble_outline),
+                    selectedIcon: Icon(Icons.chat_bubble),
+                    label: Text('History'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: Text('Settings'),
+                  ),
+                ],
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.tune),
-                selectedIcon: Icon(Icons.tune),
-                label: Text('Controls'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.chat_bubble_outline),
-                selectedIcon: Icon(Icons.chat_bubble),
-                label: Text('History'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
+
+              const VerticalDivider(thickness: 1, width: 1, color: AgeTheme.borderDark),
+
+              // Main Screen Content
+              Expanded(
+                child: _screens[_selectedIndex],
               ),
             ],
           ),
-
-          const VerticalDivider(thickness: 1, width: 1, color: AgeTheme.borderDark),
-
-          // Main Screen Content
-          Expanded(
-            child: _screens[_selectedIndex],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

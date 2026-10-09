@@ -16,10 +16,22 @@ safety:
   app_allowlist:
     notepad: "notepad.exe"
     calc: "calc.exe"
-    chrome: "chrome.exe"
-    edge: "msedge.exe"
+    chrome: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+    edge: 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
     explorer: "explorer.exe"
-    vscode: "code.cmd"
+    vscode: 'C:\Users\Ayesha Liaquat Ali\AppData\Local\Programs\Microsoft VS Code\Code.exe'
+    word: 'C:\Program Files\Microsoft Office\Root\Office16\WINWORD.EXE'
+    excel: 'C:\Program Files\Microsoft Office\Root\Office16\EXCEL.EXE'
+    powerpoint: 'C:\Program Files\Microsoft Office\Root\Office16\POWERPNT.EXE'
+    onenote: 'C:\Program Files\Microsoft Office\Root\Office16\ONENOTE.EXE'
+    outlook: 'C:\Program Files\Microsoft Office\Root\Office16\OUTLOOK.EXE'
+    access: 'C:\Program Files\Microsoft Office\Root\Office16\MSACCESS.EXE'
+    paint: "mspaint.exe"
+    taskmanager: "taskmgr.exe"
+    controlpanel: "control.exe"
+    snippingtool: "snippingtool.exe"
+    media: 'C:\Program Files (x86)\Windows Media Player\wmplayer.exe'
+
 
   # SECURITY RULE 5: Destructive actions ALWAYS require spoken or button confirmation
   destructive_actions:
@@ -41,15 +53,21 @@ logging:
 voice:
   wake_word: "Hey AGE"
   wake_word_backup_hotkey: "ctrl+space"
-  vad_sensitivity: 0.5
+  vad_sensitivity: 0.38
   whisper_model: "base.en"
   sample_rate: 16000
 
 brain:
+  provider: "groq"
+  groq_api_key: ""
+  groq_model: "qwen/qwen3.8-27b"
   ollama_endpoint: "http://127.0.0.1:11434"
   model_name: "qwen2.5:3b"
-  keep_alive: "15m"
-  timeout_seconds: 15.0
+  keep_alive: "-1"
+  timeout_seconds: 45.0
+  max_history_turns: 10
+
+
 
 storage:
   data_dir: "data"
@@ -63,22 +81,22 @@ hand_mouse:
   resolution:
     width: 640
     height: 480
-  sensitivity: 1.2
-  dead_zone_px: 6.0
-  pinch_threshold: 0.05
-  drag_delay_sec: 0.3
+  sensitivity: 1.0
+  dead_zone_px: 8.0
+  pinch_threshold: 0.08
+  drag_delay_sec: 0.45
   missing_hand_timeout_sec: 10.0
   ipc_host: "127.0.0.1"
   ipc_port: 8766
   smoothing:
-    min_cutoff: 1.0
-    beta: 0.007
+    min_cutoff: 0.6
+    beta: 0.003
     d_cutoff: 1.0
   active_region:
-    x_min: 0.2
-    x_max: 0.8
-    y_min: 0.2
-    y_max: 0.8
+    x_min: 0.12
+    x_max: 0.88
+    y_min: 0.12
+    y_max: 0.88
 
 layout:
   autosave_interval_sec: 300

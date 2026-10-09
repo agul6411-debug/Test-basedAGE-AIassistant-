@@ -38,7 +38,10 @@ class HandMouseController:
             logger.info("Hand mouse process is already running.")
             return True
 
-        cmd = [sys.executable, "-m", "hand_mouse.runner"]
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "--hand-mouse"]
+        else:
+            cmd = [sys.executable, "-m", "hand_mouse.runner"]
         logger.info("Starting hand mouse subprocess: %s", cmd)
 
         try:

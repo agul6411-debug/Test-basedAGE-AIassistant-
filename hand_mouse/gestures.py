@@ -30,6 +30,7 @@ class GestureEvent:
     cursor_y: int = 0
     scroll_amount: int = 0
     is_dragging: bool = False
+    is_pinching: bool = False
 
 
 class GestureDetector:
@@ -89,17 +90,18 @@ class GestureDetector:
 
         self._last_cursor_x: float = screen_width / 2.0
         self._last_cursor_y: float = screen_height / 2.0
+        self._pinch_lock_x: float = screen_width / 2.0
+        self._pinch_lock_y: float = screen_height / 2.0
         self._is_pinched: bool = False
         self._is_dragging: bool = False
         self._pinch_start_time: float = 0.0
         self._last_scroll_y: float | None = None
 
     def _euclidean_dist(self, p1: Any, p2: Any) -> float:
-        """Calculate Euclidean distance between two landmarks."""
+        """Calculate 2D Euclidean distance between two landmarks in camera plane."""
         dx = p1.x - p2.x
         dy = p1.y - p2.y
-        dz = getattr(p1, "z", 0.0) - getattr(p2, "z", 0.0)
-        return math.sqrt(dx * dx + dy * dy + dz * dz)
+        return math.hypot(dx, dy)
 
     def _map_to_screen(self, norm_x: float, norm_y: float) -> tuple[float, float]:
         """Map camera normalized coordinates to desktop screen resolution with horizontal mirror."""
@@ -137,6 +139,7 @@ class GestureDetector:
         index_tip = landmarks[self.INDEX_TIP]
         thumb_tip = landmarks[self.THUMB_TIP]
         middle_tip = landmarks[self.MIDDLE_TIP]
+        index_mcp = landmarks[self.INDEX_MCP]
         index_pip = landmarks[self.INDEX_PIP]
         middle_pip = landmarks[self.MIDDLE_PIP]
         ring_pip = landmarks[self.RING_PIP]
@@ -148,15 +151,18 @@ class GestureDetector:
         raw_sx, raw_sy = self._map_to_screen(index_tip.x, index_tip.y)
         smoothed_x, smoothed_y = self.filter.filter(raw_sx, raw_sy, timestamp)
 
-        # Apply dead zone against previous position
         dist_from_prev = math.hypot(smoothed_x - self._last_cursor_x, smoothed_y - self._last_cursor_y)
-        if dist_from_prev >= self.dead_zone_px or not self._is_pinched:
+        if self._is_pinched and not self._is_dragging:
+            # During click attempt, lock position to prevent finger-bend drift
+            target_x = self._pinch_lock_x
+            target_y = self._pinch_lock_y
+        elif dist_from_prev >= self.dead_zone_px:
             target_x = smoothed_x
             target_y = smoothed_y
             self._last_cursor_x = smoothed_x
             self._last_cursor_y = smoothed_y
         else:
-            # Within dead zone during pinch: hold previous position
+            # Within dead zone: hold previous position to eliminate jitter
             target_x = self._last_cursor_x
             target_y = self._last_cursor_y
 
@@ -164,27 +170,42 @@ class GestureDetector:
         cur_y = round(max(0, min(self.screen_height - 1, target_y)))
 
         # 2. Check for Two-Finger Scroll
-        # Both index and middle fingers extended; ring and pinky curled
         index_up = index_tip.y < index_pip.y
         middle_up = middle_tip.y < middle_pip.y
         ring_curled = ring_tip.y > ring_pip.y
         pinky_curled = pinky_tip.y > pinky_pip.y
         two_fingers_close = abs(index_tip.x - middle_tip.x) < 0.08
 
-        pinch_dist = self._euclidean_dist(thumb_tip, index_tip)
-        is_pinching = pinch_dist < self.pinch_threshold
+        # 3. Dual Click Detection:
+        # A) Index Finger Click (Bend index finger down like pressing mouse button)
+        dist_tip_mcp = self._euclidean_dist(index_tip, index_mcp)
+        dist_pip_mcp = max(0.01, self._euclidean_dist(index_pip, index_mcp))
+        index_bent = ((dist_tip_mcp / dist_pip_mcp) < 1.25) or (index_tip.y >= index_pip.y)
 
-        if index_up and middle_up and ring_curled and pinky_curled and two_fingers_close and not is_pinching:
+        # B) Thumb-Index Pinch Gesture
+        pinch_dist = self._euclidean_dist(thumb_tip, index_tip)
+        wrist = landmarks[self.WRIST]
+        middle_mcp = landmarks[self.MIDDLE_MCP]
+        palm_dist = max(0.04, self._euclidean_dist(wrist, middle_mcp))
+        pinch_ratio = pinch_dist / palm_dist
+
+        effective_thresh = (self.pinch_threshold * 1.3) if self._is_pinched else self.pinch_threshold
+        effective_ratio = 0.42 if self._is_pinched else 0.36
+        thumb_pinched = (pinch_dist < effective_thresh) or (pinch_ratio < effective_ratio)
+
+        # Trigger click if index finger bent or thumb pinched
+        is_clicking_gesture = index_bent or thumb_pinched
+
+        if index_up and middle_up and ring_curled and pinky_curled and two_fingers_close and not is_clicking_gesture:
             avg_y = (index_tip.y + middle_tip.y) / 2.0
             scroll_amt = 0
             if self._last_scroll_y is not None:
                 dy = avg_y - self._last_scroll_y
                 if abs(dy) > 0.015:
-                    # Moving fingers UP (smaller y) scrolls UP (+), DOWN scrolls DOWN (-)
                     scroll_amt = int(-dy * 120.0)
             self._last_scroll_y = avg_y
 
-            # Reset any pinch state
+            # Reset any click state
             if self._is_dragging:
                 self._is_dragging = False
                 return GestureEvent(action=GestureAction.MOUSE_UP, cursor_x=cur_x, cursor_y=cur_y)
@@ -201,15 +222,22 @@ class GestureDetector:
 
         self._last_scroll_y = None
 
-        # 3. Pinch & Drag State Machine
-        if is_pinching:
+        # 4. Click & Drag State Machine
+        if is_clicking_gesture:
             if not self._is_pinched:
-                # Pinch started
+                # Click gesture started
                 self._is_pinched = True
                 self._pinch_start_time = timestamp
-                return GestureEvent(action=GestureAction.MOVE, cursor_x=cur_x, cursor_y=cur_y)
+                self._pinch_lock_x = self._last_cursor_x
+                self._pinch_lock_y = self._last_cursor_y
+                return GestureEvent(
+                    action=GestureAction.MOVE,
+                    cursor_x=round(self._pinch_lock_x),
+                    cursor_y=round(self._pinch_lock_y),
+                    is_pinching=True,
+                )
 
-            # Already pinching - check drag threshold
+            # Already clicking - check drag threshold
             pinch_duration = timestamp - self._pinch_start_time
             if pinch_duration >= self.drag_delay_sec and not self._is_dragging:
                 self._is_dragging = True
@@ -218,24 +246,30 @@ class GestureDetector:
                     cursor_x=cur_x,
                     cursor_y=cur_y,
                     is_dragging=True,
+                    is_pinching=True,
                 )
 
+            lock_x = cur_x if self._is_dragging else round(self._pinch_lock_x)
+            lock_y = cur_y if self._is_dragging else round(self._pinch_lock_y)
             return GestureEvent(
                 action=GestureAction.MOVE,
-                cursor_x=cur_x,
-                cursor_y=cur_y,
+                cursor_x=lock_x,
+                cursor_y=lock_y,
                 is_dragging=self._is_dragging,
+                is_pinching=True,
             )
 
-        # Not pinching
+        # Not clicking
         if self._is_pinched:
             self._is_pinched = False
             if self._is_dragging:
                 self._is_dragging = False
                 return GestureEvent(action=GestureAction.MOUSE_UP, cursor_x=cur_x, cursor_y=cur_y)
 
-            # Short pinch released: Click!
-            return GestureEvent(action=GestureAction.CLICK, cursor_x=cur_x, cursor_y=cur_y)
+            # Finger straightened or pinch released: Click exactly at locked position!
+            click_x = round(self._pinch_lock_x)
+            click_y = round(self._pinch_lock_y)
+            return GestureEvent(action=GestureAction.CLICK, cursor_x=click_x, cursor_y=click_y)
 
         return GestureEvent(action=GestureAction.MOVE, cursor_x=cur_x, cursor_y=cur_y)
 
@@ -245,3 +279,5 @@ class GestureDetector:
         self._is_pinched = False
         self._is_dragging = False
         self._last_scroll_y = None
+        self._pinch_lock_x = self._last_cursor_x
+        self._pinch_lock_y = self._last_cursor_y

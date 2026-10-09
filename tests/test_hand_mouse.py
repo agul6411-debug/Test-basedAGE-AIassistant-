@@ -116,6 +116,25 @@ def test_pinch_click_gesture():
     assert ev3.action == GestureAction.CLICK
 
 
+def test_index_finger_tap_click_gesture():
+    detector = GestureDetector(drag_delay_sec=0.3)
+    hand = create_neutral_hand(index_x=0.5, index_y=0.5)
+
+    # Frame 1: Hand neutral, index extended (pointing)
+    ev1 = detector.process_landmarks(hand, timestamp=1.0)
+    assert ev1.action == GestureAction.MOVE
+
+    # Frame 2: Index finger bends down (tip dips to y=0.65, below pip at 0.6)
+    hand[GestureDetector.INDEX_TIP] = MockLandmark(0.5, 0.65, 0.0)
+    ev2 = detector.process_landmarks(hand, timestamp=1.05)
+    assert ev2.action == GestureAction.MOVE
+
+    # Frame 3: Index finger straightens back up (release to click)
+    hand[GestureDetector.INDEX_TIP] = MockLandmark(0.5, 0.5, 0.0)
+    ev3 = detector.process_landmarks(hand, timestamp=1.15)
+    assert ev3.action == GestureAction.CLICK
+
+
 def test_hold_pinch_drag_gesture():
     detector = GestureDetector(pinch_threshold=0.055, drag_delay_sec=0.3)
     hand = create_neutral_hand(index_x=0.5, index_y=0.5)

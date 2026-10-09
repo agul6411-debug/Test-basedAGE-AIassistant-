@@ -82,57 +82,73 @@ class _ControlsScreenState extends State<ControlsScreen> {
 
                   const Divider(color: AgeTheme.borderDark, height: 28),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  LayoutBuilder(
+                    builder: (context, box) {
+                      final isNarrow = box.maxWidth < 600;
+                      final s1 = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Pointer Sensitivity', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                              Text('${_sensitivity.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 12, color: AgeTheme.amberAccent)),
+                            ],
+                          ),
+                          Slider(
+                            value: _sensitivity,
+                            min: 0.5,
+                            max: 2.5,
+                            divisions: 20,
+                            activeColor: AgeTheme.amberAccent,
+                            inactiveColor: AgeTheme.borderDark,
+                            onChanged: (v) => setState(() => _sensitivity = v),
+                          ),
+                        ],
+                      );
+                      final s2 = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Dead Zone Threshold', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                              Text('${_deadZone.toStringAsFixed(0)} px', style: const TextStyle(fontSize: 12, color: AgeTheme.amberAccent)),
+                            ],
+                          ),
+                          Slider(
+                            value: _deadZone,
+                            min: 2.0,
+                            max: 15.0,
+                            divisions: 13,
+                            activeColor: AgeTheme.amberAccent,
+                            inactiveColor: AgeTheme.borderDark,
+                            onChanged: (v) => setState(() => _deadZone = v),
+                          ),
+                        ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Pointer Sensitivity', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                                Text('${_sensitivity.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 12, color: AgeTheme.amberAccent)),
-                              ],
-                            ),
-                            Slider(
-                              value: _sensitivity,
-                              min: 0.5,
-                              max: 2.5,
-                              divisions: 20,
-                              activeColor: AgeTheme.amberAccent,
-                              inactiveColor: AgeTheme.borderDark,
-                              onChanged: (v) => setState(() => _sensitivity = v),
-                            ),
+                            s1,
+                            const SizedBox(height: 8),
+                            s2,
                           ],
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Dead Zone Threshold', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                                Text('${_deadZone.toStringAsFixed(0)} px', style: const TextStyle(fontSize: 12, color: AgeTheme.amberAccent)),
-                              ],
-                            ),
-                            Slider(
-                              value: _deadZone,
-                              min: 2.0,
-                              max: 15.0,
-                              divisions: 13,
-                              activeColor: AgeTheme.amberAccent,
-                              inactiveColor: AgeTheme.borderDark,
-                              onChanged: (v) => setState(() => _deadZone = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: s1),
+                          const SizedBox(width: 24),
+                          Expanded(child: s2),
+                        ],
+                      );
+                    },
                   ),
+
+                  const SizedBox(height: 12),
 
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -211,7 +227,9 @@ class _ControlsScreenState extends State<ControlsScreen> {
 
                   const Divider(color: AgeTheme.borderDark, height: 28),
 
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
                     children: [
                       ElevatedButton.icon(
                         onPressed: () {
@@ -223,7 +241,6 @@ class _ControlsScreenState extends State<ControlsScreen> {
                         icon: const Icon(Icons.save, size: 16),
                         label: const Text('Save My Desktop'),
                       ),
-                      const SizedBox(width: 12),
                       OutlinedButton.icon(
                         onPressed: () {
                           client.restoreLayout();
@@ -257,32 +274,53 @@ class _ControlsScreenState extends State<ControlsScreen> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const Divider(color: AgeTheme.borderDark, height: 24),
-                  Row(
-                    children: [
-                      _EngineCard(
+                  LayoutBuilder(
+                    builder: (context, box) {
+                      final isNarrow = box.maxWidth < 700;
+                      final c1 = _EngineCard(
                         name: 'Ollama LLM Fallback',
                         model: status.models['brain'] ?? 'qwen2.5:3b',
                         status: 'Ready (Localhost)',
                         statusColor: AgeTheme.mintSuccess,
                         icon: Icons.psychology,
-                      ),
-                      const SizedBox(width: 12),
-                      _EngineCard(
+                      );
+                      final c2 = _EngineCard(
                         name: 'Whisper STT',
                         model: status.models['stt'] ?? 'base.en',
                         status: 'Loaded (faster-whisper)',
                         statusColor: AgeTheme.mintSuccess,
                         icon: Icons.record_voice_over,
-                      ),
-                      const SizedBox(width: 12),
-                      _EngineCard(
+                      );
+                      final c3 = _EngineCard(
                         name: 'Piper TTS',
                         model: status.models['tts'] ?? 'Piper English',
                         status: 'Loaded in Memory',
                         statusColor: AgeTheme.mintSuccess,
                         icon: Icons.volume_up,
-                      ),
-                    ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            c1,
+                            const SizedBox(height: 10),
+                            c2,
+                            const SizedBox(height: 10),
+                            c3,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: c1),
+                          const SizedBox(width: 12),
+                          Expanded(child: c2),
+                          const SizedBox(width: 12),
+                          Expanded(child: c3),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -311,46 +349,45 @@ class _EngineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AgeTheme.darkSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AgeTheme.borderDark),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 16, color: AgeTheme.amberAccent),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AgeTheme.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AgeTheme.borderDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: AgeTheme.amberAccent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(model, style: const TextStyle(fontSize: 13, color: AgeTheme.textPrimary)),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 6),
-                Text(status, style: TextStyle(fontSize: 11, color: statusColor)),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(model, style: const TextStyle(fontSize: 13, color: AgeTheme.textPrimary)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(status, style: TextStyle(fontSize: 11, color: statusColor)),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'models.dart';
+import 'platform/token_helper.dart' as token_helper;
 
 enum CoreConnectionState {
   disconnected,
@@ -36,65 +37,60 @@ class CoreClient extends ChangeNotifier {
   List<CommandLogItem> get conversationLog => List.unmodifiable(_conversationLog);
   Map<String, dynamic> get settings => Map.unmodifiable(_settings);
 
+  bool get isGroqConfigured {
+    final groq = _settings['groq'];
+    if (groq is Map) {
+      return groq['configured'] == true || groq['has_key'] == true;
+    }
+    return false;
+  }
+
+  String get groqModel {
+    final groq = _settings['groq'];
+    if (groq is Map && groq['model'] != null) {
+      return groq['model'].toString();
+    }
+    return 'qwen/qwen3.8-27b';
+  }
+
   CoreClient() {
     connect();
   }
 
-  /// Locate and read the session token from disk.
+  /// Locate and read the session token from disk or HTTP endpoint.
   Future<String?> _readToken() async {
-    // Candidates for token path depending on running as desktop app or tests
-    final candidates = [
-      'data/sessions/session.token',
-      '../data/sessions/session.token',
-      '../../data/sessions/session.token',
-    ];
-
-    for (final p in candidates) {
-      final f = File(p);
-      if (await f.exists()) {
-        final t = (await f.readAsString()).trim();
-        if (t.isNotEmpty) return t;
+    if (kIsWeb) {
+      // 1. Check query parameter first
+      final queryToken = Uri.base.queryParameters['token'];
+      if (queryToken != null && queryToken.trim().isNotEmpty) {
+        return queryToken.trim();
       }
+
+      // 2. Fetch from local loopback endpoint /api/token
+      try {
+        final host = Uri.base.host.isNotEmpty ? Uri.base.host : serverHost;
+        final port = Uri.base.port > 0 ? Uri.base.port : serverPort;
+        final tokenUri = Uri.parse('http://$host:$port/api/token');
+        final response = await http.get(tokenUri);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final token = data['token'] as String?;
+          if (token != null && token.isNotEmpty) {
+            return token;
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to fetch web token via /api/token: $e');
+      }
+      return null;
     }
-    return null;
+
+    return token_helper.readDiskToken();
   }
 
-  /// Launch core Python runner if server is offline.
+  /// Launch core Python runner if server is offline (desktop only).
   Future<void> _maybeSpawnCore() async {
-    if (kIsWeb) return;
-    try {
-      // Find python executable in .venv
-      final pythonCandidates = [
-        '.venv/Scripts/python.exe',
-        '../.venv/Scripts/python.exe',
-        'python',
-      ];
-
-      String? pythonExe;
-      String? workingDir;
-
-      for (final py in pythonCandidates) {
-        if (File(py).existsSync()) {
-          pythonExe = py;
-          workingDir = py.startsWith('..') ? '..' : '.';
-          break;
-        }
-      }
-
-      if (pythonExe != null) {
-        debugPrint('Core server offline. Auto-starting AGE Core runner via $pythonExe...');
-        await Process.start(
-          pythonExe,
-          ['-m', 'core.server.runner'],
-          workingDirectory: workingDir,
-          mode: ProcessStartMode.detached,
-        );
-        // Wait 1.5 seconds for socket binding
-        await Future.delayed(const Duration(milliseconds: 1500));
-      }
-    } catch (e) {
-      debugPrint('Failed to auto-spawn core: $e');
-    }
+    await token_helper.maybeSpawnCore();
   }
 
   /// Connect to WebSocket server with automatic token exchange.
@@ -113,7 +109,9 @@ class CoreClient extends ChangeNotifier {
     }
 
     final freshToken = await _readToken();
-    final uri = Uri.parse('ws://$serverHost:$serverPort');
+    final host = kIsWeb && Uri.base.host.isNotEmpty ? Uri.base.host : serverHost;
+    final port = kIsWeb && Uri.base.port > 0 ? Uri.base.port : serverPort;
+    final uri = Uri.parse('ws://$host:$port');
 
     try {
       _channel = WebSocketChannel.connect(uri);
@@ -152,6 +150,7 @@ class CoreClient extends ChangeNotifier {
             _reconnectTimer?.cancel();
             _startStatusPolling();
             querySettings();
+            _send({'type': 'start_listening'});
           } else {
             _connectionState = CoreConnectionState.unauthorized;
           }
@@ -310,11 +309,31 @@ class CoreClient extends ChangeNotifier {
   }
 
   void toggleListening() {
-    if (_activeState == 'listening') {
+    if (_activeState != 'idle') {
       _send({'type': 'stop_listening'});
     } else {
       _send({'type': 'start_listening'});
     }
+  }
+
+  void updateSetting(String key, dynamic value) {
+    _send({
+      'type': 'update_setting',
+      'key': key,
+      'value': value,
+    });
+  }
+
+  void setGroqApiKey(String apiKey) {
+    updateSetting('groq_api_key', apiKey.trim());
+  }
+
+  void setGroqModel(String model) {
+    updateSetting('groq_model', model.trim());
+  }
+
+  void clearMemory() {
+    updateSetting('clear_history', true);
   }
 
   @override

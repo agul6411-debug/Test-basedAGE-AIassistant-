@@ -99,3 +99,33 @@ def test_type_text_schema():
 
     with pytest.raises(ValidationError):
         TypeTextSchema(text="")  # Empty rejected
+
+
+def test_open_app_standard_folders(monkeypatch):
+    from core.tools.open_app import OpenAppTool
+
+    launched = []
+    monkeypatch.setattr("core.tools.open_app._launch_target", lambda target: (launched.append(str(target)), True)[1])
+
+    tool = OpenAppTool()
+    res = tool.execute(app_name="downloads")
+    assert res.success is True
+    assert len(launched) == 1
+    assert "downloads" in launched[0].lower()
+
+
+def test_open_app_media_and_protocol(monkeypatch):
+    from core.tools.open_app import OpenAppTool, find_installed_app
+
+    # Test camera protocol
+    assert find_installed_app("camera") == "microsoft.windows.camera:"
+    assert find_installed_app("settings") == "ms-settings:"
+
+    launched = []
+    monkeypatch.setattr("core.tools.open_app._launch_target", lambda target: (launched.append(str(target)), True)[1])
+
+    tool = OpenAppTool()
+    res = tool.execute(app_name="camera")
+    assert res.success is True
+    assert "camera" in res.message.lower()
+
